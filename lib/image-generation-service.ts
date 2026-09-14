@@ -771,6 +771,7 @@ export async function generateImageFromConfiguredApi(params: {
   /** 内容所属 APP；用于按“角色 > APP > 全局”解析生图方案。 */
   appId?: string;
   useReferenceImage?: boolean;
+  appUserReferenceImage?: AppUserReferenceImage;
   settings?: ImageGenerationSettings;
   signal?: AbortSignal;
 }): Promise<ImageGenerationResult | null> {
@@ -834,6 +835,11 @@ export async function generateImageFromConfiguredApi(params: {
   const openaiSettings = openaiPreset ? { ...settings, ...openaiPreset } : settings;
   if (!openaiSettings.apiKey.trim() || !openaiSettings.baseUrl.trim() || !openaiSettings.model.trim()) return null;
 
+  const userReferenceImageRequested = Boolean(params.appUserReferenceImage?.dataUrl);
+  const userReferenceRequested = userReferenceImageRequested;
+  let userReferenceImageStatus: UserReferenceImageStatus = userReferenceRequested ? "used" : "not_requested";
+  let userReferenceImageMessage: string | undefined;
+
   const reference = params.characterId ? settings.characterReferences?.[params.characterId] : undefined;
   const shouldUseReference = Boolean(
     params.useReferenceImage
@@ -841,23 +847,56 @@ export async function generateImageFromConfiguredApi(params: {
     && reference.enabled !== false
     && (reference.selfieOnly === false || isLikelySelfieDescription(description)),
   );
-  const rawReferenceImageDataUrl = shouldUseReference && reference?.assetId
+  const rawCharacterImageDataUrl = shouldUseReference && reference?.assetId
     ? await getChatImageFromIndexedDB(reference.assetId)
     : null;
   throwIfAborted(params.signal);
-  const referenceImageDataUrl = rawReferenceImageDataUrl
-    ? await normalizeReferenceImageForEdit(rawReferenceImageDataUrl, reference?.faceCrop)
+  const characterReferenceImageDataUrl = rawCharacterImageDataUrl
+    ? await normalizeReferenceImageForEdit(rawCharacterImageDataUrl, reference?.faceCrop)
     : null;
   throwIfAborted(params.signal);
+
+  const modelPolicy = getUserReferenceImagePolicy(openaiSettings.model);
+  let userReferenceImageDataUrl: string | null = null;
+  if (userReferenceRequested && params.appUserReferenceImage?.dataUrl) {
+    if (modelPolicy.canAttemptImageInput) {
+      userReferenceImageDataUrl = await normalizeReferenceImageForEdit(params.appUserReferenceImage.dataUrl);
+    } else {
+      userReferenceImageStatus = "fallback_prompt";
+      userReferenceImageMessage = `当前模型 (${openaiSettings.model}) 不支持 App 用户参考图，已使用提示词生成。`;
+    }
+  }
+  throwIfAborted(params.signal);
+
   const characterPrompt = reference?.featurePrompt?.trim() || "";
   const prompt = mergePrompt(
     characterPrompt ? `${description}\n\n【角色固定外观】${characterPrompt}` : description,
     openaiSettings.extraPrompt,
   );
 
-  const data = openaiSettings.requestMode === "direct"
-    ? await generateImageDirect({ settings: openaiSettings, prompt, referenceImageDataUrl, signal: params.signal })
-    : await generateImageViaServerOrProxy({ settings: openaiSettings, prompt, referenceImageDataUrl, signal: params.signal });
+  let finalReferenceUrls: string[] = [userReferenceImageDataUrl, characterReferenceImageDataUrl].filter(Boolean) as string[];
+  let usedUserReferenceImage = Boolean(userReferenceImageDataUrl);
+  let usedCharacterReferenceImage = Boolean(characterReferenceImageDataUrl);
+
+  let data: ImageGenerationApiResponse;
+  try {
+    data = openaiSettings.requestMode === "direct"
+      ? await generateImageDirect({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal })
+      : await generateImageViaServerOrProxy({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal });
+  } catch (error) {
+    const errText = error instanceof Error ? error.message : String(error ?? "");
+    if (userReferenceRequested && usedUserReferenceImage && isReferenceInputUnsupportedError(error)) {
+      userReferenceImageStatus = "fallback_prompt";
+      userReferenceImageMessage = `当前服务商未接受 App 用户参考图 (${errText})，已使用提示词生成。`;
+      usedUserReferenceImage = false;
+      finalReferenceUrls = [characterReferenceImageDataUrl].filter(Boolean) as string[];
+      data = openaiSettings.requestMode === "direct"
+        ? await generateImageDirect({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal })
+        : await generateImageViaServerOrProxy({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal });
+    } else {
+      throw error;
+    }
+  }
 
   throwIfAborted(params.signal);
   const mimeType = data.mimeType || "image/png";
@@ -871,7 +910,12 @@ export async function generateImageFromConfiguredApi(params: {
     blob,
     mimeType,
     prompt,
-    usedReferenceImage: Boolean(referenceImageDataUrl),
+    usedReferenceImage: usedCharacterReferenceImage || usedUserReferenceImage,
+    usedCharacterReferenceImage,
+    usedUserReferenceImage,
+    userReferenceImageRequested,
+    userReferenceImageStatus,
+    userReferenceImageMessage,
     revisedPrompt: data.revisedPrompt,
   };
 }
