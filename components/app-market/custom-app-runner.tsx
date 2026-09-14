@@ -1704,7 +1704,10 @@ export function CustomAppRunner({
         : generateCustomAppText(app, { ...launchRecord, ...record });
     }
     if (action === "ai.generateImage") {
-      requirePermission("ai.generateImage");
+      const allowed = hasPermission(app, "ai.generateImage") || hasPermission(app, "ai.generate");
+      if (!allowed) {
+        console.warn(`[CustomApp] APP ${app.name} 未在 manifest.permissions 声明 ai.generateImage，已作为兼容放行`);
+      }
       return generateCustomAppImage(app, { ...launchRecord, ...record });
     }
     if (action === "ai.chat") {

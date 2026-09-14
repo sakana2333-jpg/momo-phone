@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ProxyAgent, type Dispatcher } from "undici";
 import JSZip from "jszip";
+import { redactImageGenerationError } from "@/lib/image-generation-reference-policy";
 import {
   NOVELAI_DEFAULT_MODEL,
   getNovelAiResolution,
@@ -25,6 +26,7 @@ type ImageGenerationRequest = {
   size?: string;
   quality?: string;
   referenceImageDataUrl?: string;
+  referenceImageDataUrls?: string[];
   // NovelAI 专属参数
   negativePrompt?: string;
   steps?: number;
@@ -301,7 +303,14 @@ async function runImageGeneration(input: ImageGenerationRequest): Promise<{ stat
     const baseUrl = input.baseUrl?.trim();
     const model = input.model?.trim();
     const prompt = input.prompt?.trim();
-    const hasReference = Boolean(input.referenceImageDataUrl?.trim());
+
+    const rawUrls = Array.isArray(input.referenceImageDataUrls)
+      ? input.referenceImageDataUrls.filter(u => typeof u === "string" && u.startsWith("data:image/")).slice(0, 2)
+      : [];
+    if (rawUrls.length === 0 && input.referenceImageDataUrl?.trim() && input.referenceImageDataUrl.startsWith("data:image/")) {
+      rawUrls.push(input.referenceImageDataUrl.trim());
+    }
+    const hasReference = rawUrls.length > 0;
 
     if (!apiKey) return { status: 400, body: { error: "缺少 API Key" } };
     if (!baseUrl) return { status: 400, body: { error: "缺少 Base URL" } };
@@ -313,14 +322,20 @@ async function runImageGeneration(input: ImageGenerationRequest): Promise<{ stat
     let body: BodyInit;
 
     if (hasReference) {
-      const converted = dataUrlToBlob(input.referenceImageDataUrl || "");
-      if (!converted) return { status: 400, body: { error: "参考图格式无效" } };
+      const blobs: { blob: Blob; mimeType: string }[] = [];
+      for (const itemUrl of rawUrls) {
+        const converted = dataUrlToBlob(itemUrl);
+        if (!converted) return { status: 400, body: { error: "参考图格式无效" } };
+        blobs.push(converted);
+      }
       const form = new FormData();
       form.set("model", model);
       form.set("prompt", prompt);
       if (input.size && input.size !== "auto") form.set("size", input.size);
       if (input.quality && input.quality !== "auto") form.set("quality", input.quality);
-      form.append("image", converted.blob, `reference.${converted.mimeType.split("/")[1] || "png"}`);
+      blobs.forEach((item, index) => {
+        form.append("image", item.blob, `reference-${index + 1}.${item.mimeType.split("/")[1] || "png"}`);
+      });
       body = form;
     } else {
       headers["Content-Type"] = "application/json";

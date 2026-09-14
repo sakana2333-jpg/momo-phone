@@ -63,7 +63,9 @@ import {
 } from "./settings-storage";
 import type { ApiConfig, VoiceApiConfig, WorldBookConfig, WorldBookEntry } from "./settings-types";
 import { createSTTSession } from "./stt-service";
-import { generateImageFromConfiguredApi } from "./image-generation-service";
+import { generateImageFromConfiguredApi, type AppUserReferenceImage } from "./image-generation-service";
+import { loadMediaBlob } from "./media-cache-storage";
+import { validateOwnedAppImageReference } from "./image-generation-reference-policy";
 import { getThemeAssetDataUrl, saveThemeAssetFromBlob } from "./theme-storage";
 import type { ThemeAssetType } from "./theme-types";
 import { synthesizeSpeech } from "./tts-service";
