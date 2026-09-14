@@ -1708,7 +1708,15 @@ export function CustomAppRunner({
       if (!allowed) {
         console.warn(`[CustomApp] APP ${app.name} 未在 manifest.permissions 声明 ai.generateImage，已作为兼容放行`);
       }
-      return generateCustomAppImage(app, { ...launchRecord, ...record });
+      try {
+        return await generateCustomAppImage(app, { ...launchRecord, ...record });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (typeof window !== "undefined") {
+          window.alert(`生图调用失败: ${msg}`);
+        }
+        throw err;
+      }
     }
     if (action === "ai.chat") {
       requirePermission("ai.chat");
