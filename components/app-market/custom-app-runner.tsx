@@ -1085,7 +1085,7 @@ export function CustomAppRunner({
           userReferenceImage: true,
           userReferenceImageSupported: true,
           supported: true,
-          model: "gpt-image-2",
+          model: imgSettings.model || "gpt-image-2",
           multiImageSupported: true,
         },
         features: {
