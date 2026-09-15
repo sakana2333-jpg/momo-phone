@@ -1094,7 +1094,7 @@ export function CustomAppRunner({
         },
         sdk: {
           app: ["getManifest", "getCapabilities", "getLaunchContext", "getAssetUrl", "close"],
-          ai: ["generate", "chat", "embed", "classify"],
+          ai: ["generate", "generateImage", "chat", "embed", "classify"],
           user: ["getProfile", "getPersona", "getPreferences"],
           network: ["fetch"],
           voice: ["readProfiles", "tts", "stt", "record", "stopRecord", "clone", "play", "stopPlayback", "pausePlayback", "resumePlayback"],
