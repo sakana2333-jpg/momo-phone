@@ -1079,18 +1079,21 @@ export function CustomAppRunner({
         promptProfiles: app.manifest.extensions?.prompt?.profiles ?? app.manifest.promptProfiles ?? [],
         events: app.manifest.extensions?.events ?? app.manifest.events ?? [],
         network: app.manifest.network ?? {},
+        userReferenceImage: true,
+        userReferenceImageSupported: true,
         imageGeneration: {
           enabled: true,
           configured: true,
           userReferenceImage: true,
           userReferenceImageSupported: true,
           supported: true,
-          model: imgSettings.model || "gpt-image-2",
+          model: imgSettings.model || "gpt-image-2.5",
           multiImageSupported: true,
         },
         features: {
           imageGeneration: true,
           userReferenceImage: true,
+          userReferenceImageSupported: true,
         },
         sdk: {
           app: ["getManifest", "getCapabilities", "getLaunchContext", "getAssetUrl", "close"],
