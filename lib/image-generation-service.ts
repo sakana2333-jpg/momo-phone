@@ -864,8 +864,7 @@ export async function generateImageFromConfiguredApi(params: {
     if (modelPolicy.canAttemptImageInput) {
       userReferenceImageDataUrl = await normalizeReferenceImageForEdit(params.appUserReferenceImage.dataUrl);
     } else {
-      userReferenceImageStatus = "fallback_prompt";
-      userReferenceImageMessage = `当前模型 (${openaiSettings.model}) 不支持 App 用户参考图，已使用提示词生成。`;
+      throw new Error(`【未应用参考图·已阻止错误出图】模型名称「${openaiSettings.model}」未被系统识别为支持参考图 edits。请在设置中将模型名称填为 gpt-image-2 或 gpt-image-2.5。`);
     }
   }
   throwIfAborted(params.signal);
