@@ -842,7 +842,7 @@ export async function generateImageFromConfiguredApi(params: {
   let userReferenceImageStatus: UserReferenceImageStatus = userReferenceRequested ? "used" : "not_requested";
   let userReferenceImageMessage: string | undefined;
 
-  const reference = params.characterId ? settings.characterReferences?.[params.characterId] : undefined;
+  const reference = params.characterId ? (openaiSettings.characterReferences?.[params.characterId] ?? settings.characterReferences?.[params.characterId]) : undefined;
   const shouldUseReference = Boolean(
     params.useReferenceImage
     && reference?.assetId
