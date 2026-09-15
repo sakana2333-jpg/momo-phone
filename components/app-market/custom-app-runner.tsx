@@ -1080,12 +1080,16 @@ export function CustomAppRunner({
         events: app.manifest.extensions?.events ?? app.manifest.events ?? [],
         network: app.manifest.network ?? {},
         imageGeneration: {
-          enabled: hasHostImageApi,
-          configured: hasHostImageApi,
+          enabled: true,
+          configured: true,
           userReferenceImage: true,
+          supported: true,
+          userReferenceImageSupported: true,
+          multiImageSupported: true,
         },
         features: {
-          imageGeneration: hasHostImageApi,
+          imageGeneration: true,
+          userReferenceImage: true,
         },
         sdk: {
           app: ["getManifest", "getCapabilities", "getLaunchContext", "getAssetUrl", "close"],
