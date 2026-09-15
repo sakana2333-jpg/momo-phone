@@ -1368,11 +1368,42 @@ export async function runCustomAppAiClassify(app: InstalledCustomApp, record: Re
   return { label, raw };
 }
 
+const CUSTOM_APP_MEDIA_REFS_COLLECTION = "__media_refs";
+const CUSTOM_APP_IMAGE_REFERENCE_MAX_BYTES = 25 * 1024 * 1024;
+
+async function resolveOwnedCustomAppUserReferenceImage(
+  app: InstalledCustomApp,
+  refValue: unknown,
+): Promise<AppUserReferenceImage | undefined> {
+  const rawRef = cleanText(refValue, 240);
+  if (!rawRef) return undefined;
+  if (rawRef.startsWith("data:image/")) {
+    const mime = rawRef.substring(5, rawRef.indexOf(";")) || "image/png";
+    return { dataUrl: rawRef, mimeType: mime };
+  }
+  if (!rawRef.startsWith("media-store://")) {
+    throw new Error("App 用户参考图必须是 media-store:// 引用。");
+  }
+  const ownedRows = readCustomAppCollection(app.id, CUSTOM_APP_MEDIA_REFS_COLLECTION);
+  const media = await loadMediaBlob(rawRef);
+  if (!media) throw new Error("App 用户参考图已被删除或不可用。");
+  if (media.category !== "image" || !media.mimeType.startsWith("image/")) {
+    throw new Error("App 用户参考图必须是图片媒体。");
+  }
+  if (media.blob.size > CUSTOM_APP_IMAGE_REFERENCE_MAX_BYTES) {
+    throw new Error("App 用户参考图不能超过 25MB。");
+  }
+  const dataUrl = await blobToDataUrl(media.blob);
+  return { dataUrl, mimeType: media.mimeType };
+}
+
 export async function generateCustomAppImage(app: InstalledCustomApp, record: Record<string, unknown>): Promise<Record<string, unknown>> {
   const description = cleanText(record.prompt ?? record.description, 4000);
   if (!description) throw new Error("ai.generateImage 需要 prompt。");
   const characterId = cleanText(record.characterId, 160) || undefined;
   const useReferenceImage = record.useReferenceImage === true;
+  const userReferenceImageRef = record.userReferenceImageRef ?? record.userReferenceImage ?? record.userImageRef;
+  const appUserReferenceImage = await resolveOwnedCustomAppUserReferenceImage(app, userReferenceImageRef);
   const timeoutMs = optionalCustomAppTimeoutMs(record.timeoutMs);
   const result = await withOptionalCustomAppTimeout(timeoutMs, "ai.generateImage", signal => (
     generateImageFromConfiguredApi({
@@ -1380,6 +1411,7 @@ export async function generateCustomAppImage(app: InstalledCustomApp, record: Re
       characterId,
       appId: `custom_app:${app.id}`,
       useReferenceImage,
+      appUserReferenceImage,
       signal,
     })
   ));
@@ -1391,6 +1423,11 @@ export async function generateCustomAppImage(app: InstalledCustomApp, record: Re
     prompt: result.prompt,
     revisedPrompt: result.revisedPrompt,
     usedReferenceImage: result.usedReferenceImage,
+    usedCharacterReferenceImage: result.usedCharacterReferenceImage,
+    usedUserReferenceImage: result.usedUserReferenceImage,
+    userReferenceImageRequested: result.userReferenceImageRequested,
+    userReferenceImageStatus: result.userReferenceImageStatus,
+    userReferenceImageMessage: result.userReferenceImageMessage,
   };
 }
 
