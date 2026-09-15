@@ -789,8 +789,9 @@ export async function generateImageFromConfiguredApi(params: {
   const description = params.description.trim();
   if (!description) return null;
 
-  // NovelAI 模式
-  if (settings.provider === "novelai") {
+  // 防御性校验：只有显式为 novelai 且没有 OpenAI 配置时才走 NovelAI，避免预设切换残留 provider 导致意外 402
+  const hasOpenAi = Boolean(settings.apiKey?.trim() && settings.baseUrl?.trim());
+  if (settings.provider === "novelai" && !hasOpenAi) {
     const naiApiKey = settings.novelai?.apiKey?.trim();
     if (!naiApiKey) return null;
 
