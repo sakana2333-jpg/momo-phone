@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { getChatImageFromIndexedDB } from "./chat-asset-storage";
 import { storeMediaBlob } from "./media-cache-storage";
 import { throwIfAborted } from "./abort-utils";
+import { getUserReferenceImagePolicy, isReferenceInputUnsupportedError } from "./image-generation-reference-policy";
 import {
   NOVELAI_COMMON_MODELS,
   getNovelAiResolution,
