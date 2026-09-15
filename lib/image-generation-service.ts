@@ -886,17 +886,13 @@ export async function generateImageFromConfiguredApi(params: {
       : await generateImageViaServerOrProxy({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal });
   } catch (error) {
     const errText = error instanceof Error ? error.message : String(error ?? "");
-    if (userReferenceRequested && usedUserReferenceImage && isReferenceInputUnsupportedError(error)) {
-      userReferenceImageStatus = "fallback_prompt";
-      userReferenceImageMessage = `当前服务商未接受 App 用户参考图 (${errText})，已使用提示词生成。`;
-      usedUserReferenceImage = false;
-      finalReferenceUrls = [characterReferenceImageDataUrl].filter(Boolean) as string[];
-      data = openaiSettings.requestMode === "direct"
-        ? await generateImageDirect({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal })
-        : await generateImageViaServerOrProxy({ settings: openaiSettings, prompt, referenceImageDataUrls: finalReferenceUrls, signal: params.signal });
-    } else {
-      throw error;
+    if (userReferenceRequested && usedUserReferenceImage) {
+      if (typeof window !== "undefined") {
+        window.alert(`【参考图被拒·已阻止错误出图】服务商接口报错: ${errText}`);
+      }
+      throw new Error(`【参考图被拒·已阻止错误出图】服务商接口报错: ${errText}`);
     }
+    throw error;
   }
 
   throwIfAborted(params.signal);
